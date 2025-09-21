@@ -1,13 +1,17 @@
 local insert = table.insert
 --- #Usage
 ---```lua
----local flag = require("flag")
+--- local flag = require("flag")
 --- -- Mutate `arg` or create your own one
 --- flag:Init( arg, "This is the explanation of the command" )
 --- -- flag:Unnamed("file", "list", {}, "This is the explanation of `file`")
 --- flag:Number("n", 123, "This is the explanation of `-n` flag")
 --- -- ...
---- local flags = flag:Parse() -- `os.exit()` on error happend or 0-args
+--- local flags, ers = flag:Parse()
+--- if ers[1] then
+---		print(flag:Help())
+---		os.exit(1)
+--- end
 --- -- flags.unnamed or flags.file is array or {}
 --- -- flags.n is `number` or 123
 ---```
@@ -123,7 +127,7 @@ function flag:title()
 	end
 	return title .. "\n"
 end
-function flag:help()
+function flag:Help()
 	local help = self:title()
 	if self.args.help then
 		help = help .. self.args.help .. "\n\n"
@@ -171,14 +175,13 @@ function flag:parseValue(is_sciped, name, value)
 	end
 	return is_sciped and self._decl[name].default or verifyed
 end
---- `arg` to verifyed `table`
+--- `arg` to verifyed `table` and error of parsing
 ---@nodiscard
----@return table
+---@return table, string[]
 function flag:Parse()
 	local args = self.args.args
 	if #args == 0 then
-		print(self:help())
-		os.exit(1)
+		return {}, {}
 	end
 	local last_name = "unnamed"
 	local is_one_set = true
@@ -222,19 +225,15 @@ function flag:Parse()
 			is_one_set = true
 		end
 	end
-	if self._flag["h"] or self._ers[1] then
-		print(self:help())
-		os.exit(1)
-	end
 
 	local parsed = {}
 	for n, v in pairs(self._flag) do
-		if n ~= "h" then
-			parsed[n] = v
-		elseif n == "unnamed" then
+		if n == "unnamed" then
 			parsed[self._decl.unnamed.alias] = v
+		elseif n ~= "h" then
+			parsed[n] = v
 		end
 	end
-	return parsed
+	return parsed, self._ers
 end
 return flag

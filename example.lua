@@ -8,10 +8,14 @@ end
 local flag = require("flag")
 -- Mutate `arg` or create your own one
 flag:Init(arg, "This is the explanation of the command")
--- flag:Unnamed( "file", "list", {}, "This is the explanation of `file`" )
+flag:Unnamed("file", "list", {}, "This is the explanation of `file`")
 flag:Number("n", 123, "number", "This is the explanation of `-n` flag")
 -- ...
-local flags = flag:Parse() -- `os.exit()` on error happened or 0-args
+local flags, ers = flag:Parse()
+if ers[1] then
+	print(flag:Help())
+	os.exit(1)
+end
 
 for key, value in pairs(flags) do
 	print(key, type(value) == "table" and list2string(value) or value)
