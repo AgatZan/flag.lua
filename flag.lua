@@ -12,15 +12,24 @@ local insert = table.insert
 --- -- flags.n is `number` or 123
 ---```
 local flag = {
+	---@type {[string]: Flag.declaration}
 	_decl = {
 		unnamed = { alias = "unnamed", type = "list", default = {}, help = "" },
 		h = { type = "boolean", default = false, alias = "help", help = "print help message" },
 	},
-	_alias = {},
+	---@type {[string]: string}
+	_alias = { help = "h" },
+	---@type string[]
 	_ers = {},
-	_flag = {},
+	---@type {[string]: `Flag.types`}
+	_flag = { unnamed = {} },
 }
 ---@alias Flag.types 'list'|'number'|'boolean'|'string'
+---@class Flag.declaration
+---@field alias string?
+---@field type Flag.types
+---@field default any
+---@field help string?
 
 --- Set `arg` and optional helpdoc
 ---@param args string[] `arg` arg[0] treat as command name
@@ -86,13 +95,17 @@ function flag:List(name, default, alias, help)
 	if alias then
 		self._alias[alias] = name
 	end
+	self._flag[name] = default or {}
 end
 local function list2string(list)
 	local str = "{" .. (list[1] and (" " .. list[1]) or "")
 	for i = 2, #list do
 		str = str .. ", " .. (type(list[i]) == "string" and ("'" .. list[i] .. "'") or list[i])
 	end
-	return " }"
+	if list[2] then
+		str = str .. " "
+	end
+	return str .. "}"
 end
 local function value2string(type, value)
 	return type == "list" and list2string(value)
@@ -101,13 +114,11 @@ local function value2string(type, value)
 		or value
 end
 function flag:title()
-	local title = "Usage: "
-		.. self.args.command
-		.. (self._decl.unnamed and (self._decl.unnamed.alias .. " <" .. self._decl.unnamed.type .. ">") or "")
+	local title = "Usage: " .. self.args.command .. " " .. (self._decl.unnamed and self._decl.unnamed.alias or "")
 	for name, decl in pairs(self._decl) do
 		if name ~= "unnamed" then
-			local alias = self._alias[decl.alias] and ("[--" .. self._alias[decl.alias] .. "]") or ""
-			title = title .. " -" .. name .. alias .. " <" .. decl.type .. ">"
+			local alias = self._alias[decl.alias] and ("[--" .. decl.alias .. "]") or ""
+			title = title .. " -" .. name .. alias .. (decl.type ~= "boolean" and (" <" .. decl.type .. ">") or "")
 		end
 	end
 	return title .. "\n"
@@ -115,23 +126,24 @@ end
 function flag:help()
 	local help = self:title()
 	if self.args.help then
-		help = help .. self.args.help .. "\n"
+		help = help .. self.args.help .. "\n\n"
 	end
 	if self._ers[1] then
 		help = help .. "Errors:\n"
 		for i = 1, #self._ers do
-			help = "\t" .. self._ers[i] .. "\n"
+			help = help .. "\t" .. self._ers[i] .. "\n"
 		end
 	end
 	help = help .. "Options:\n"
+	local tag = self._decl.unnamed.alias
+	local val = value2string(self._decl.unnamed.type, self._flag.unnamed or self._decl.unnamed.default)
+	help = help .. "\t" .. tag .. " ( " .. val .. " ) " .. self._decl.unnamed.help .. "\n"
 	for name, decl in pairs(self._decl) do
-		local tag = name == "unnamed" and self._decl.unnamed[1]
-			or ("-" .. name .. (self._alias[self._decl[name].alias] and (" ( --" .. self._decl[name].alias .. " )")))
-		local val = value2string(
-			self._decl[name].type,
-			self._flag[name] and not self._flag[name].isScipped and self._flag[name].val or self._decl[name].default
-		)
-		help = help .. "\t" .. tag .. ":" .. val .. "  " .. decl.help .. "\n"
+		if name ~= "unnamed" then
+			tag = ("-" .. name .. (self._alias[self._decl[name].alias] and ("[--" .. self._decl[name].alias .. "]")))
+			val = value2string(self._decl[name].type, self._flag[name] or self._decl[name].default)
+			help = help .. "\t" .. tag .. " ( " .. val .. " ) " .. decl.help .. "\n"
+		end
 	end
 	return help
 end
@@ -157,7 +169,7 @@ function flag:parseValue(is_sciped, name, value)
 	if verifyed == nil then
 		return insert(self._ers, err)
 	end
-	return is_sciped and verifyed or self._decl[name].default
+	return is_sciped and self._decl[name].default or verifyed
 end
 --- `arg` to verifyed `table`
 ---@nodiscard
@@ -169,43 +181,47 @@ function flag:Parse()
 		os.exit(1)
 	end
 	local last_name = "unnamed"
-	local is_one_set = false
+	local is_one_set = true
 	local alias, is_sciped, name, tag
 	for i = 1, #args do
 		local arg = args[i]
-		if arg:find("^--?/?") then
-			alias, is_sciped, name = arg:match("(-?)(/?)(%w+)")
+		if arg:find("^%-%-?/?") then
+			alias, is_sciped, name = arg:match("-(-?)(/?)(%w+)")
 			tag = "-" .. name
-			if alias then
+			-- vim.print(type(alias), name, self._decl[name], self._alias[name], self._decl[self._alias[name]])
+			if alias and alias ~= "" then
 				tag = "--" .. name
 				if not self._alias[name] then
 					insert(self._ers, tag .. ": undefine alias")
 				end
-				name = self._alias[alias]
+				name = self._alias[name]
+				alias = ""
 			end
-			if not self._decl[name] and not alias then
+			if not self._decl[name] and (not alias or alias == "") then
 				insert(self._ers, tag .. ": undefine option")
 			else
 				if self._decl[name].type == "boolean" then
+					self._flag[name] = is_sciped ~= "/"
 					is_one_set = true
-					self._flag[name] = true
 				elseif not is_one_set and self._decl[name] ~= "list" then
 					insert(self._ers, tag .. ": given but unset")
+				else
+					is_one_set = false
 				end
 				last_name = name
 			end
 		elseif self._decl[last_name].type == "list" then
 			insert(self._flag[last_name], arg)
+			is_one_set = true
 		else
 			local typ = self._decl[last_name]
 			if is_one_set and not typ == "boolean" then
 				insert(self._ers, tag .. " override setted value: " .. value2string(self._flag[last_name]))
 			end
-			is_one_set = false
 			self._flag[last_name] = self:parseValue(is_sciped == "/", name, arg)
+			is_one_set = true
 		end
 	end
-
 	if self._flag["h"] or self._ers[1] then
 		print(self:help())
 		os.exit(1)
