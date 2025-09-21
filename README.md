@@ -3,11 +3,15 @@
 ```lua
 local flag = require("flag")
 -- Mutate `arg` or create your own one
-flag:Init( arg, "This is the explanation of the command" )
--- flag:Unnamed( "file", "list", {}, "This is the explanation of `file`" )
-flag:Number( "n", 123, "number", "This is the explanation of `-n` flag" )
+flag:Init( arg, "This is an explanation of the command" )
+-- flag:Unnamed( "file", "list", {}, "This is an explanation of `file`" )
+flag:Number( "n", 123, "number", "This is an explanation of `-n` flag" )
 -- ...
 local flags = flag:Parse() -- `os.exit()` on error happened or 0-args
+if ers[1] then
+    print(flag:Help())
+    os.exit(1)
+end
 -- flags.unnamed or flags.file is array or {}
 -- flags.n is `number` or 123
 ```
