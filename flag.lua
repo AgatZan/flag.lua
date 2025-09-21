@@ -14,7 +14,7 @@ local insert = table.insert
 local flag = {
 	_decl = {
 		unnamed = { alias = "unnamed", type = "list", default = {}, help = "" },
-		h = { type = "boolean", default = false, alias = "help", help = "print help message (shorthand)" },
+		h = { type = "boolean", default = false, alias = "help", help = "print help message" },
 	},
 	_alias = {},
 	_ers = {},
