@@ -204,13 +204,13 @@ function flag:parseValue(is_sciped, name, value)
 		return insert(self._ers, tag .. ": undefine option")
 	end
 	local typ = self._decl[name].type
-	local verifyed, err = verifyValue(typ, tag, value)
-	if verifyed == nil then
+	local verified, err = verifyValue(typ, tag, value)
+	if verified == nil then
 		return insert(self._ers, err)
 	end
-	return is_sciped and self._decl[name].default or verifyed
+	return is_sciped and self._decl[name].default or verified
 end
---- `arg` to verifyed `table` and error of parsing
+--- `arg` to verified `table` and error of parsing
 ---@nodiscard
 ---@return table, string[]
 function flag:Parse()
