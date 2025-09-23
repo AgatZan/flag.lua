@@ -1,105 +1,6 @@
 local insert = table.insert
---- #Usage
----```lua
---- local flag = require("flag")
---- -- Mutate `arg` or create your own one
---- flag:Init( arg, "This is the explanation of the command" )
---- -- flag:Unnamed("file", "list", {}, "This is the explanation of `file`")
---- flag:Number("n", 123, "This is the explanation of `-n` flag")
---- -- ...
---- local flags, ers = flag:Parse()
---- if ers[1] then
----		print(flag:Help())
----		os.exit(1)
---- end
---- -- flags.unnamed or flags.file is array or {}
---- -- flags.n is `number` or 123
----```
-local flag = {
-	---@type {[string]: Flag.declaration}
-	_decl = {
-		unnamed = { alias = "unnamed", type = "list", default = {}, help = "" },
-		h = { type = "boolean", default = false, alias = "help", help = "print help message" },
-	},
-	---@type {[string]: string}
-	_alias = { help = "h" },
-	---@type string[]
-	_ers = {},
-	---@type {[string]: `Flag.types`}
-	_flag = { unnamed = {} },
-}
----@alias Flag.types 'list'|'number'|'boolean'|'string'
----@class Flag.declaration
----@field alias string?
----@field type Flag.types
----@field default any
----@field help string?
-
---- Set `arg` and optional helpdoc
----@param args string[] `arg` arg[0] treat as command name
----@param help string?
-function flag:Init(args, help)
-	self.args = { command = args[0], args = args, help = help }
-end
---- Declare value/s without flags
----NOTE: unexpected values NOT push to that
----NOTE: `default` is UNCHECKED
----@param alias string MUST be UNIQUE because treated as parsed key. Default: "unnamed"
----@param type Flag.types? to replace. Default: "list"
----@param default any? UNCHECKED MUST be EQUAL to `type`
----@param help string? you found it at `--help`
-function flag:Unnamed(alias, type, default, help)
-	self._decl.unnamed =
-		{ alias = alias or "unnamed", type = type or "list", default = default or {}, help = help or "" }
-end
---- Declare number value also [16, 8, 2]-base string
----NOTE: `default` is UNCHECKED
----@param name string `-name`
----@param default number? UNCHECKED NOW ONLY 10-base number. Default: 0. TODO: make [16, 8, 2]-base string possible
----@param alias string? `--alias`
----@param help string? you found it at `--help`
-function flag:Number(name, default, alias, help)
-	self._decl[name] = { type = "number", default = default or 0, alias = alias, help = help or "" }
-	if alias then
-		self._alias[alias] = name
-	end
-end
---- Declare boolean NOW `true` or `false` string or `-name` without value only
----NOTE: `default` is UNCHECKED
----@param name string `-name`
----@param default boolean? Default: false.
----@param alias string? `--alias`
----@param help string? you found it at `--help`
-function flag:Bool(name, default, alias, help)
-	self._decl[name] = { type = "boolean", default = default or false, alias = alias, help = help or "" }
-	if alias then
-		self._alias[alias] = name
-	end
-end
---- Declare boolean NOW `true` or `false` string or `-name` without value only
----NOTE: `default` is UNCHECKED
----@param name string `-name`
----@param default string? UNCHECKED
----@param alias string? `--alias`
----@param help string? you found it at `--help`
-function flag:String(name, default, alias, help)
-	self._decl[name] = { type = "string", default = default or "", alias = alias, help = help or "" }
-	if alias then
-		self._alias[alias] = name
-	end
-end
---- Declare list that absorbs all `arg` to the new flag
----NOTE: `default` is UNCHECKED
----@param name string `-name`
----@param default table? UNCHECKED
----@param alias string? `--alias`
----@param help string? you found it at `--help`
-function flag:List(name, default, alias, help)
-	self._decl[name] = { type = "list", default = default or {}, alias = alias, help = help or "" }
-	if alias then
-		self._alias[alias] = name
-	end
-	self._flag[name] = default or {}
+local function typesafe(typ, value)
+	return type(value) == typ or typ == "number" and (tonumber(value) or tonumber(value, 2) or tonumber(value, 8) or tonumber(value, 16))
 end
 local function list2string(list)
 	local str = "{" .. (list[1] and (" " .. list[1]) or "")
@@ -117,6 +18,129 @@ local function value2string(type, value)
 		or type == "string" and ("'" .. value .. "'")
 		or value
 end
+---@alias Flag.types 'table'|'number'|'boolean'|'string'
+
+---@class Flag.declaration
+---@field alias string?
+---@field type Flag.types
+---@field default any
+---@field help string?
+
+--- #Usage
+---```lua
+--- local flag = require("flag")
+--- -- Mutate `arg` or create your own one
+--- -- # STEP 1. Declare
+--- flag:Init( arg, "This is the explanation of the command" )
+--- -- flag:Unnamed("file", "list", {}, "This is the explanation of `file`")
+--- flag:Number("n", 123, "This is the explanation of `-n` flag")
+--- -- ...
+--- -- # STEP 2. Parse
+--- local flags, ers = flag:Parse()
+--- if ers[1] then
+---		print(flag:Help())
+---		os.exit(1)
+--- end
+--- -- # STEP 3. Use
+--- -- flags.unnamed -- or flags.file is array or {}
+--- -- flags.n 		 -- is `number` or 123
+---```
+local flag = {
+	---@type {[string]: Flag.declaration}
+	_decl = {
+		unnamed = { alias = "unnamed", type = "list", default = {}, help = "" },
+		h = { type = "boolean", default = false, alias = "help", help = "print help message" },
+	},
+	---@type {[string]: string}
+	_alias = { help = "h" },
+	---@type string[]
+	_ers = {},
+	---@type {[string]: `Flag.types`}
+	_flag = { unnamed = {} },
+}
+
+
+--- Set `arg` and optional helpdoc
+---@param args string[] `arg` args[0] treat as command name
+---@param help string?
+function flag:Init(args, help)
+	self.args = { command = args[0], args = args, help = help }
+end
+--- Declare value/s without flags
+---NOTE: unexpected values NOT push to that
+---@param alias string? MUST be UNIQUE, treated as parsed key. Default: "unnamed"
+---@param type Flag.types? to replace. Default: "list"
+---@param default any? MUST be EQUAL to `type`
+---@param help string? you found it at `--help`
+function flag:Unnamed(alias, type, default, help)
+	assert(typesafe(type, default))
+	assert(self._decl[name] == nil)
+	
+	self._decl.unnamed =
+		{ alias = alias or "unnamed", type = type or "table", default = default or {}, help = help or "" }
+end
+--- Declare number value also [16, 8, 2]-base string
+---@param name string `-name` MUST be UNIQUE, treated as parsed key
+---@param default (number|string)? Default: 0.
+---@param alias string? `--alias` MUST be UNIQUE
+---@param help string? you found it at `--help`
+function flag:Number(name, default, alias, help)
+	assert(typesafe(type, default))
+	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
+	
+	self._decl[name] = { type = "number", default = type(default) ~= "string" and default or tonumber(value) or tonumber(value, 2) or tonumber(value, 8) or tonumber(value, 16) or 0, alias = alias, help = help or "" }
+	if alias then
+		assert(self._alias[alias] == nil)
+		self._alias[alias] = name
+	end
+end
+--- Declare boolean NOW `true` or `false` string or `-name` without value only
+---@param name string `-name` MUST be UNIQUE, treated as parsed key
+---@param default boolean? Default: false.
+---@param alias string? `--alias` MUST be UNIQUE
+---@param help string? you found it at `--help`
+function flag:Bool(name, default, alias, help)
+	assert(typesafe(type, default))
+	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
+	
+	self._decl[name] = { type = "boolean", default = default or false, alias = alias, help = help or "" }
+	if alias then
+		assert(self._alias[alias] == nil)
+		self._alias[alias] = name
+	end
+end
+--- Declare boolean NOW `true` or `false` string or `-name` without value only
+---@param name string `-name`  MUST be UNIQUE, treated as parsed key
+---@param default string?
+---@param alias string? `--alias` MUST be UNIQUE
+---@param help string? you found it at `--help`
+function flag:String(name, default, alias, help)
+	assert(typesafe(type, default))
+	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
+	
+	self._decl[name] = { type = "string", default = default or "", alias = alias, help = help or "" }
+	if alias then
+		assert(self._alias[alias] == nil)
+		self._alias[alias] = name
+	end
+end
+--- Declare list that absorbs all `arg` to the new flag
+---@param name string `-name`  MUST be UNIQUE, treated as parsed key
+---@param default table?
+---@param alias string? `--alias` MUST be UNIQUE
+---@param help string? you found it at `--help`
+function flag:List(name, default, alias, help)
+	assert(typesafe(type, default))
+	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
+	
+	self._decl[name] = { type = "list", default = default or {}, alias = alias, help = help or "" }
+	if alias then
+		assert(self._alias[alias] == nil)
+		self._alias[alias] = name
+	end
+	self._flag[name] = default or {}
+end
+
 function flag:title()
 	local title = "Usage: " .. self.args.command .. " " .. (self._decl.unnamed and self._decl.unnamed.alias or "")
 	for name, decl in pairs(self._decl) do
