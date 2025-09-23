@@ -1,6 +1,7 @@
 local insert = table.insert
 local function typesafe(typ, value)
-	return type(value) == typ or typ == "number" and (tonumber(value) or tonumber(value, 2) or tonumber(value, 8) or tonumber(value, 16))
+	return type(value) == typ
+		or typ == "number" and (tonumber(value) or tonumber(value, 2) or tonumber(value, 8) or tonumber(value, 16))
 end
 local function list2string(list)
 	local str = "{" .. (list[1] and (" " .. list[1]) or "")
@@ -48,7 +49,7 @@ end
 local flag = {
 	---@type {[string]: Flag.declaration}
 	_decl = {
-		unnamed = { alias = "unnamed", type = "list", default = {}, help = "" },
+		unnamed = { alias = "unnamed", type = "table", default = {}, help = "" },
 		h = { type = "boolean", default = false, alias = "help", help = "print help message" },
 	},
 	---@type {[string]: string}
@@ -58,7 +59,6 @@ local flag = {
 	---@type {[string]: `Flag.types`}
 	_flag = { unnamed = {} },
 }
-
 
 --- Set `arg` and optional helpdoc
 ---@param args string[] `arg` args[0] treat as command name
@@ -74,8 +74,8 @@ end
 ---@param help string? you found it at `--help`
 function flag:Unnamed(alias, type, default, help)
 	assert(typesafe(type, default))
-	assert(self._decl[name] == nil)
-	
+	assert(self._decl[alias] == nil)
+
 	self._decl.unnamed =
 		{ alias = alias or "unnamed", type = type or "table", default = default or {}, help = help or "" }
 end
@@ -86,9 +86,20 @@ end
 ---@param help string? you found it at `--help`
 function flag:Number(name, default, alias, help)
 	assert(typesafe(type, default))
-	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
-	
-	self._decl[name] = { type = "number", default = type(default) ~= "string" and default or tonumber(value) or tonumber(value, 2) or tonumber(value, 8) or tonumber(value, 16) or 0, alias = alias, help = help or "" }
+	assert(self._decl.unnamed.alias ~= name and self._decl[name] == nil)
+
+	self._decl[name] = {
+		type = "number",
+		-- stylua: ignore
+		default = type(default) ~= "string" and default
+			or tonumber(default)
+			or tonumber(default, 2)
+			or tonumber(default, 8)
+			or tonumber(default, 16)
+			or 0,
+		alias = alias,
+		help = help or "",
+	}
 	if alias then
 		assert(self._alias[alias] == nil)
 		self._alias[alias] = name
@@ -101,8 +112,8 @@ end
 ---@param help string? you found it at `--help`
 function flag:Bool(name, default, alias, help)
 	assert(typesafe(type, default))
-	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
-	
+	assert(self._decl.unnamed.alias ~= name and self._decl[name] == nil)
+
 	self._decl[name] = { type = "boolean", default = default or false, alias = alias, help = help or "" }
 	if alias then
 		assert(self._alias[alias] == nil)
@@ -116,8 +127,8 @@ end
 ---@param help string? you found it at `--help`
 function flag:String(name, default, alias, help)
 	assert(typesafe(type, default))
-	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
-	
+	assert(self._decl.unnamed.alias ~= name and self._decl[name] == nil)
+
 	self._decl[name] = { type = "string", default = default or "", alias = alias, help = help or "" }
 	if alias then
 		assert(self._alias[alias] == nil)
@@ -131,9 +142,9 @@ end
 ---@param help string? you found it at `--help`
 function flag:List(name, default, alias, help)
 	assert(typesafe(type, default))
-	assert(self._decl.unnamed.alias ~= name && self._decl[name] == nil)
-	
-	self._decl[name] = { type = "list", default = default or {}, alias = alias, help = help or "" }
+	assert(self._decl.unnamed.alias ~= name and self._decl[name] == nil)
+
+	self._decl[name] = { type = "table", default = default or {}, alias = alias, help = help or "" }
 	if alias then
 		assert(self._alias[alias] == nil)
 		self._alias[alias] = name
